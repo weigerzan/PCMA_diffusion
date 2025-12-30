@@ -55,6 +55,6 @@ training:
   hub_private_repo: false
 
 sampling:
-  num_inference_steps: 2 # 采样步数，通常取100~500
+  num_inference_steps: 100 # 采样步数，通常取100~500
   eta: 0.15 # DDIM超参数，0~1之间
   output_dir: /nas/datasets/zjw/PCMA_8psk/diffusion_prediction/ # 采样结果保存位置，记得要修改，不然会覆盖；每个shard保存一个文件，从1编号
