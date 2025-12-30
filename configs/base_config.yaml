@@ -1,0 +1,60 @@
+model:
+  type: DDPM
+  predict_target: x0   # x0 or epsilon，实验发现x0比较好
+  num_diffusion_timesteps: 1000 # 1000步离散化，一般不动
+
+data:
+  signal_len: 3072 # 信号长度
+  modulation: 8PSK # 调制方式，仅在解调时使用
+  train: # 有两种方式指定数据路径（下test同）：（1）给定每个文件的path列表；（2）给定base路径+shard_list+pattern，由程序自动生成每个文件的path
+    # Option A: list of full paths
+    paths:
+      - /nas/datasets/yixin/PCMA/8PSK/target/8psk_train_target_amp0.8_snr15_delayRand2-7_N100000_shard01_of10_c128.pth
+      # - /nas/datasets/yixin/PCMA/8PSK/target/8psk_train_target_amp0.8_snr15_delayRand2-7_N100000_shard02_of10_c128.pth
+      # - /nas/datasets/yixin/PCMA/8PSK/target/8psk_train_target_amp0.8_snr15_delayRand2-7_N100000_shard03_of10_c128.pth
+      # - /nas/datasets/yixin/PCMA/8PSK/target/8psk_train_target_amp0.8_snr15_delayRand2-7_N100000_shard04_of10_c128.pth
+      # - /nas/datasets/yixin/PCMA/8PSK/target/8psk_train_target_amp0.8_snr15_delayRand2-7_N100000_shard05_of10_c128.pth
+
+    # Option B: base + shard_list + pattern
+    # base: /nas/datasets/yixin/PCMA/8PSK/target
+    # shard_list: [1, 2, 3, 4, 5]
+    # pattern: "8psk_train_target_amp0.8_snr15_delayRand2-7_N100000_shard{idx:02d}_of_05.pth"
+
+  test:
+    paths:
+      - /nas/datasets/yixin/PCMA/8PSK/target/8psk_train_target_amp0.8_snr15_delayRand2-7_N100000_shard10_of10_c128.pth
+
+    # Option B: base + shard_list + pattern
+    # base: /nas/datasets/yixin/PCMA/8PSK/targ
+    # base: /nas/datasets/PCMA/test
+    # shard_list: [1, 2, 3]
+    # pattern: "shard{idx:02d}_of_03.pth"
+
+training:
+  pretrained: null # 预训练模型位置，通常为 PATH/unet/ 的格式
+
+  train_batch_size: 64 # 根据显存调整
+  test_batch_size: 64 # 根据显存调整
+
+  num_epochs: 500 # 训练总轮数
+  gradient_accumulation_steps: 1 # 梯度累积，保持1就行
+
+  learning_rate: 2e-4 # 学习率，通常保持
+  lr_warmup_steps: 200 # 学习率预热步数，通常保持
+
+  mixed_precision: fp16 # 混合精度训练，通常保持
+  seed: 0 # 随机种子，不用管
+
+  save_data_epochs: 1 # 多久做一次测试
+  save_model_epochs: 1 # 多久保存一次模型
+  output_dir: results/DDPM-PCMA # 模型保存路径，记得要修改，不然会覆盖
+  overwrite_output_dir: true
+
+  push_to_hub: false
+  hub_model_id: "<username>/<model>"
+  hub_private_repo: false
+
+sampling:
+  num_inference_steps: 2 # 采样步数，通常取100~500
+  eta: 0.15 # DDIM超参数，0~1之间
+  output_dir: /nas/datasets/zjw/PCMA_8psk/diffusion_prediction/ # 采样结果保存位置，记得要修改，不然会覆盖；每个shard保存一个文件，从1编号
