@@ -1,3 +1,82 @@
+# 数据生成配置
+data_generation:
+  # 仿真数据生成配置（用于 generate_sim_dataset.py）
+  generate_sim:
+    num_samples: 100000  # 总样本数
+    shard_size: 10000  # 每个分片的样本数（0表示不分片）  #一般保持10000
+    save_dir: /nas/datasets/yixin/PCMA/sim_data  # 保存目录
+    save_complex64: true  # 是否保存为complex64（节省空间）
+    random_seed: 42  # 随机种子（null表示不固定）
+    
+    # 调制方式（可以是字符串或列表）
+    modulation1: 8PSK  # 第一路调制，或列表如 ["QPSK", "8PSK"] 表示随机选择
+    modulation2: 8PSK  # 第二路调制
+    
+    # 信道参数
+    # 参数设置方式：
+    #   - 固定值：直接写数值，如 15.0
+    #   - 范围：列表 [min, max]，如 [14.0, 20.0]
+    #   - 随机选择：列表 [val1, val2, ...]，如 [0.6, 0.7, 0.8]
+    #   - 相位值：可以用数值（rad），或用列表 [数值, "pi"] 表示 π 的倍数
+    #     例如：[0, 2] 表示 [0, 2π]，[0, "pi"] 表示 [0, π]，0.15 表示 0.15π
+    snr_db: [14.0, 20.0]  # SNR范围（dB），或固定值如 15.0
+    amp_ratio: [0.2, 0.9]  # 幅度比 |s2|/|s1|，或固定值如 0.7
+    freq_offset1: [0.0, 200.0]  # 第一路频偏范围（Hz），或固定值
+    freq_offset2: [0.0, 200.0]  # 第二路频偏范围（Hz），或固定值
+    phase1: [0.0, 0.15]  # 第一路初相位范围（以π为单位），[0, 0.15] 表示 [0, 0.15π]
+    phase2: [0.0, 2]  # 第二路初相位范围（以π为单位），[0, 2] 表示 [0, 2π]
+    delay1_samp: [0, 8]  # 第一路时延范围（采样点），或固定值
+    delay2_samp: [0, 8]  # 第二路时延范围（采样点），或固定值
+    
+    # 滤波器类型
+    filter_type: rrc  # "rc" 或 "rrc"
+  
+
+  # 真实数据生成配置（用于 split_from_raw_data.py 和 generate_mixed_from_splits.py）
+  # 原始数据路径配置（用于 split_from_raw_data.py）
+  raw_data:
+    base_dir: /nas/datasets/LYX/PCMA  # 原始数据根目录
+    paths:  # 各调制方式的原始数据文件路径（根据调制方式自动查找）
+      QPSK: /nas/datasets/LYX/PCMA/QPSK_16/1050/1050000000_10000000__12000000_20250623170252_902610_0000.dat
+      8PSK: /nas/datasets/LYX/PCMA/8PSK_16/1050/1050000000_20000000__24000000_20250623162534_672204_0000.dat
+      16QAM: /nas/datasets/LYX/PCMA/16QAM_16/1050/1050000000_20000000__24000000_20250623165125_802081_0000.dat
+  
+  # split_from_raw_data.py 配置 评估原始数据中是否可解调，并生成切片文件
+  split:
+    modulation_list: [8PSK]  # 要处理的调制方式列表，如 ["QPSK", "8PSK"] 或 ["8PSK"]
+    output_dir: /nas/datasets/yixin/PCMA/real_data  # 输出目录
+    threshold: 6.0  # 聚类分数阈值（用于判断是否可解调）  #一般保持6.0
+    train_ratio: 0.9  # 训练集比例（0.0-1.0）
+    random_seed: 42  # 随机种子
+    max_slices_per_file: 100000  # 每个文件最多处理的切片数（null表示全部）
+    max_samples: 1000000  # 每种调制方式最多生成的样本数（null表示全部）
+    mode: both  # 处理模式: "both"（处理训练集和测试集）, "train_only"（仅处理训练集）, "evaluate_test_only"（仅重新评估测试集）
+    num_workers: 32  # 并行评估时使用的进程数（null表示使用CPU核心数）
+  
+  # generate_mixed_from_splits.py 配置 从切片文件中生成混合信号对
+  generate_mixed:
+    modulation: 8PSK  # 调制方式: "QPSK", "8PSK", "16QAM"
+    mode: both  # 生成模式: "both"（生成训练集和测试集配对）, "train"（仅生成训练集配对）, "test"（仅生成测试集配对）
+    output_dir: /nas/datasets/yixin/PCMA/real_data/8psk  # 输出目录
+    shard_size: 10000  # 每个shard的样本数
+    target_pairs: 100000  # 训练集目标生成的混合信号对数量
+    test_target_pairs: null  # 测试集目标生成的混合信号对数量（null表示使用target_pairs的10%）
+    # 幅度比配置（二选一）
+    amp_range: [0.7, 0.7]  # 范围 [min, max]，如 [0.2, 0.9] 或 [0.7, 0.7] 表示固定值0.7
+    amp_list: null  # 多个固定幅度比列表（如果指定，将忽略amp_range），如 [0.6, 0.7, 0.8, 0.9]
+    sps: 8  # 每符号采样数
+    random_seed: 42  # 随机种子
+    train_demodulable: true  # 训练集数据是否可解调（影响保存路径）
+    test_demodulable: true  # 测试集数据是否可解调（影响保存路径）
+    undemodulable: false  # 是否使用不可解调数据（仅测试集）
+    add_noise_to_target_snr: false  # 是否添加噪声至目标SNR
+    target_snr_db: 15.0  # 目标SNR（dB）
+    filter_type: RRC  # 滤波器类型: "RRC" 或 "RC"
+    num_workers: null  # 多进程配置（null表示使用CPU核心数）
+    num_files_per_amp: 0  # 每个幅度比生成的文件数（0表示使用原有逻辑）
+    samples_per_file: 30  # 每个文件的样本数（用于test1_2/test2_2模式）
+
+
 model:
   type: DDPM
   predict_target: x0   # x0 or epsilon，实验发现x0比较好
@@ -58,3 +137,4 @@ sampling:
   num_inference_steps: 100 # 采样步数，通常取100~500
   eta: 0.15 # DDIM超参数，0~1之间
   output_dir: /nas/datasets/zjw/PCMA_8psk/diffusion_prediction/ # 采样结果保存位置，记得要修改，不然会覆盖；每个shard保存一个文件，从1编号
+
