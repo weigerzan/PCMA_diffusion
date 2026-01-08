@@ -10,11 +10,16 @@ import numpy as np
 
 fs = 12e6
 
+bits_per_sample_dict = {'QPSK': 2, '8PSK': 3, '16QAM': 4}
+
 class PCMAModDataset_Decoding_Generate(PCMAModDataset):
-    def __init__(self, file_list, transform=None):
+    def __init__(self, file_list, signal_len=3072, modulation='8PSK', transform=None):
         super().__init__(file_list=file_list, transform=transform)
         self.m = 1
-        self.bits_per_block = int(384*3 / self.m)
+        self.signal_len = signal_len
+        self.modulation = modulation
+        self.bits_per_sample = bits_per_sample_dict[modulation]
+        self.bits_per_block = int(384*self.bits_per_sample / self.m)
         self.samples_per_block = int(3072 / self.m)
         self.symbols_per_block = int(384 / self.m)
 
@@ -58,12 +63,29 @@ class PCMAModDataset_Decoding_Generate(PCMAModDataset):
         labels1 = torch.zeros(self.symbols_per_block, dtype=torch.long)
         labels2 = torch.zeros(self.symbols_per_block, dtype=torch.long)
         for i in range(self.symbols_per_block):
-            bits_segment1 = bits1[i*3:(i+1)*3]
-            bits_segment2 = bits2[i*3:(i+1)*3]
-            label1 = bits_segment1[0] * 4 + bits_segment1[1] * 2 + bits_segment1[2] * 1
-            label2 = bits_segment2[0] * 4 + bits_segment2[1] * 2 + bits_segment2[2] * 1
-            labels1[i] = label1
-            labels2[i] = label2
+            if self.modulation == 'QPSK':
+                bits_segment1 = bits1[i*2:(i+1)*2]
+                bits_segment2 = bits2[i*2:(i+1)*2]
+                label1 = bits_segment1[0] * 2 + bits_segment1[1] * 1
+                label2 = bits_segment2[0] * 2 + bits_segment2[1] * 1
+                labels1[i] = label1
+                labels2[i] = label2
+            elif self.modulation == '8PSK':
+                bits_segment1 = bits1[i*3:(i+1)*3]
+                bits_segment2 = bits2[i*3:(i+1)*3]
+                label1 = bits_segment1[0] * 4 + bits_segment1[1] * 2 + bits_segment1[2] * 1
+                label2 = bits_segment2[0] * 4 + bits_segment2[1] * 2 + bits_segment2[2] * 1
+                labels1[i] = label1
+                labels2[i] = label2
+            elif self.modulation == '16QAM':
+                bits_segment1 = bits1[i*4:(i+1)*4]
+                bits_segment2 = bits2[i*4:(i+1)*4]
+                label1 = bits_segment1[0] * 8 + bits_segment1[1] * 4 + bits_segment1[2] * 2 + bits_segment1[3] * 1
+                label2 = bits_segment2[0] * 8 + bits_segment2[1] * 4 + bits_segment2[2] * 2 + bits_segment1[3] * 1
+                labels1[i] = label1
+                labels2[i] = label2
+            else:
+                raise NotImplementedError
         # clean1 = (clean1 - clean1.mean())/clean1.std()
         # clean2 = (clean2 - clean2.mean())/clean2.std()
         data['rf_signal1_predict'] = torch.from_numpy(data['rf_signal1_predict'])

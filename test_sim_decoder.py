@@ -498,7 +498,7 @@ def main():
     # loaded_data = torch.load(args.test_data_path)  # list of dict
     # _, dataset = get_decode_train_test_100k(m=1, base=('/nas/datasets/zjw/PCMA_8psk/diffusion_prediction_ddnm/'))
     print(config.data.decoding_files)
-    dataset = PCMAModDataset_Decoding_Generate(config.data.decoding_files)
+    dataset = PCMAModDataset_Decoding_Generate(config.data.decoding_files, signal_len=config.data.signal_len, modulation=config.data.modulation)
     # dataset = GenericTestDataset(loaded_data)
     # sampler = DistributedSampler(dataset, num_replicas=world, rank=rank,
                                 #  shuffle=False, drop_last=False) if dist_is_initialized() else None
