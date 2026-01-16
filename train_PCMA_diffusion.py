@@ -40,9 +40,9 @@ def evaluate(config, epoch, pipeline, test_dataloader, accelerator, tracker, glo
     for step, batch in enumerate(test_dataloader):
         if step >= 2:
             break
-        mix = batch['mix'].to('cuda')  # [B, 2, 3072]
-        clean1 = batch['clean1'].to('cuda')
-        clean2 = batch['clean2'].to('cuda')
+        mix = batch['mix'].to(device)  # [B, 2, 3072]
+        clean1 = batch['clean1'].to(device)
+        clean2 = batch['clean2'].to(device)
         clean_samples = torch.cat([clean1, clean2], dim=1)  # [B, 4, 3072]
         bs = clean_samples.shape[0]
         xt = torch.randn((bs, 4, config.data.signal_len), device=device)
@@ -79,7 +79,7 @@ def evaluate(config, epoch, pipeline, test_dataloader, accelerator, tracker, glo
     return avg_mse
     
 
-def train(config, trainset, testset):
+def train(config, trainset, testset, device='cuda'):
     train_dataloader = torch.utils.data.DataLoader(trainset, batch_size=config.training.train_batch_size, shuffle=True)
     test_dataloader = torch.utils.data.DataLoader(testset, batch_size=config.training.test_batch_size, shuffle=False)
     model = UNet1DModel(
@@ -118,10 +118,10 @@ def train(config, trainset, testset):
         num_warmup_steps=config.training.lr_warmup_steps,
         num_training_steps=(len(train_dataloader) * config.training.num_epochs),
     )
-    train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, test_dataloader)
+    train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, test_dataloader, device)
 
 
-def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, test_dataloader):
+def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_scheduler, test_dataloader, device='cuda'):
     # Initialize accelerator and tensorboard logging
     accelerator = Accelerator(
         mixed_precision=config.training.mixed_precision,
@@ -129,7 +129,14 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
         log_with="tensorboard",
         project_dir=os.path.join(config.training.output_dir, "logs"),
     )
+    
+    # 打印设备信息
     if accelerator.is_main_process:
+        if device.startswith('cuda'):
+            print(f"Accelerator设备信息:")
+            print(f"  设备数量: {torch.cuda.device_count()}")
+            print(f"  当前设备: {torch.cuda.current_device()}")
+            print(f"  设备名称: {torch.cuda.get_device_name(torch.cuda.current_device())}")
         if config.training.output_dir is not None:
             os.makedirs(config.training.output_dir, exist_ok=True)
         accelerator.init_trackers("train_example")
@@ -141,6 +148,11 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
     model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, lr_scheduler
     )
+    
+    # 检查模型实际所在的设备
+    if accelerator.is_main_process:
+        model_device = next(model.parameters()).device
+        print(f"模型实际所在设备: {model_device}")
     global_step = 0
 
     # Now you train the model
@@ -151,9 +163,9 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
         
         for step, batch in enumerate(train_dataloader):
             # clean_images = batch["input"]
-            mix = batch['mix'].to('cuda')  # [B, 2, 3072]
-            clean1 = batch['clean1'].to('cuda')
-            clean2 = batch['clean2'].to('cuda')
+            mix = batch['mix'].to(device)  # [B, 2, 3072]
+            clean1 = batch['clean1'].to(device)
+            clean2 = batch['clean2'].to(device)
             # print(clean1)
             clean_samples = torch.cat([clean1, clean2], dim=1)  # [B, 4, 3072]
             # Sample noise to add to the images
@@ -191,7 +203,7 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
         if accelerator.is_main_process:
             pipeline = DDPMPipeline(unet=accelerator.unwrap_model(model), scheduler=noise_scheduler)
             if (epoch + 1) % config.training.save_data_epochs == 0 or epoch == config.training.num_epochs - 1:
-                evaluate(config, epoch, pipeline, test_dataloader, accelerator, accelerator.trackers[0], global_step, device='cuda')
+                evaluate(config, epoch, pipeline, test_dataloader, accelerator, accelerator.trackers[0], global_step, device=device)
             if (epoch + 1) % config.training.save_model_epochs == 0 or epoch == config.training.num_epochs - 1:
                 if config.training.push_to_hub:
                     pass
@@ -202,11 +214,46 @@ def train_loop(config, model, noise_scheduler, optimizer, train_dataloader, lr_s
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='base_config.yaml', help='Output directory name')
+    parser.add_argument('--gpu', type=int, default=None, help='GPU ID to use (e.g., 0, 1, 2). If not specified, uses default CUDA device.')
     # parser.add_argument('--mode', type=str, default='8PSK', help='modulation mode')
     args = parser.parse_args()
+    
+    # 设置 GPU 设备
+    # 注意：如果通过环境变量 CUDA_VISIBLE_DEVICES 设置了可见GPU，
+    # 那么在该进程中，指定的物理GPU会被重新编号为逻辑GPU 0
+    if args.gpu is not None:
+        # 检查是否已经通过环境变量设置了 CUDA_VISIBLE_DEVICES
+        cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+        if cuda_visible is None:
+            # 如果没有设置环境变量，尝试设置（虽然可能已经导入torch，但可以尝试）
+            # 更好的方法是在启动脚本中设置 CUDA_VISIBLE_DEVICES
+            print(f"警告: 建议在启动脚本中设置 CUDA_VISIBLE_DEVICES={args.gpu}")
+            print(f"例如: CUDA_VISIBLE_DEVICES={args.gpu} python train_PCMA_diffusion.py --config {args.config}")
+            os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+            # 重新导入torch以应用环境变量（但这可能不会生效）
+            # 所以最好在启动时设置环境变量
+        
+        if not torch.cuda.is_available():
+            raise RuntimeError(f"CUDA不可用，无法使用GPU {args.gpu}")
+        
+        # 如果设置了 CUDA_VISIBLE_DEVICES，物理GPU会被重新编号为0
+        # 所以使用 cuda:0
+        device = 'cuda:0'
+        torch.cuda.set_device(0)
+        print(f"使用物理GPU {args.gpu} (在当前进程中映射为 cuda:0)")
+        if torch.cuda.device_count() > 0:
+            print(f"当前使用的GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'cuda':
+            current_gpu = torch.cuda.current_device()
+            print(f"使用默认CUDA设备: GPU {current_gpu} ({torch.cuda.get_device_name(current_gpu)})")
+        else:
+            print(f"使用设备: {device}")
+    
     config = load_config(os.sep.join(['configs', args.config]))
     trainset, testset = get_train_test_with_config(config)
-    train(config, trainset, testset)
+    train(config, trainset, testset, device)
 
 
 if __name__ == '__main__':

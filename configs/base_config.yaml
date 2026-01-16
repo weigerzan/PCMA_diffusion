@@ -51,7 +51,7 @@ data_generation:
     max_slices_per_file: 100000  # 每个文件最多处理的切片数（null表示全部）
     max_samples: 1000000  # 每种调制方式最多生成的样本数（null表示全部）
     mode: both  # 处理模式: "both"（处理训练集和测试集）, "train_only"（仅处理训练集）, "evaluate_test_only"（仅重新评估测试集）
-    num_workers: 32  # 并行评估时使用的进程数（null表示使用CPU核心数）
+    num_workers: 64  # 并行评估时使用的进程数（null表示使用CPU核心数）
   
   # generate_mixed_from_splits.py 配置 从切片文件中生成混合信号对
   generate_mixed:
@@ -69,7 +69,7 @@ data_generation:
     train_demodulable: true  # 训练集数据是否可解调（影响保存路径）
     test_demodulable: true  # 测试集数据是否可解调（影响保存路径）
     undemodulable: false  # 是否使用不可解调数据（仅测试集）
-    add_noise_to_target_snr: false  # 是否添加噪声至目标SNR
+    add_noise_to_target_snr: true  # 是否添加噪声至目标SNR
     target_snr_db: 15.0  # 目标SNR（dB）
     filter_type: RRC  # 滤波器类型: "RRC" 或 "RC"
     num_workers: null  # 多进程配置（null表示使用CPU核心数）
@@ -137,4 +137,3 @@ sampling:
   num_inference_steps: 100 # 采样步数，通常取100~500
   eta: 0.15 # DDIM超参数，0~1之间
   output_dir: /nas/datasets/zjw/PCMA_8psk/diffusion_prediction/ # 采样结果保存位置，记得要修改，不然会覆盖；每个shard保存一个文件，从1编号
-

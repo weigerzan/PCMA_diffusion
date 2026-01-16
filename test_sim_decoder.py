@@ -605,8 +605,8 @@ def main():
                 # print(meta)
                 delay1 = meta['delay1']
                 delay2 = meta['delay2']
-                if abs(delay1 - delay2) < 2:
-                    continue
+                # if abs(delay1 - delay2) < 2:
+                #     continue
 
                 f1 = meta.get('f_off1', 0.0) or 0.0
                 f2 = meta.get('f_off2', 0.0) or 0.0
@@ -654,7 +654,16 @@ def main():
 
                 L1 = min(len(ps1), len(gs1))
                 L2 = min(len(ps2), len(gs2))
+                
                 if L1 <= 0 or L2 <= 0:
+                    print(f"L1: {L1}, L2: {L2}")
+                    print(f"ps1: {ps1.shape}, gs1: {gs1.shape}")
+                    print(f"ps2: {ps2.shape}, gs2: {gs2.shape}")
+                    print(f"pr1: {pr1.shape}, gt1: {gt1.shape}")
+                    print(f"pr2: {pr2.shape}, gt2: {gt2.shape}")
+                    print(f"f1: {f1}, f2: {f2}")
+                    print(f"phi1: {phi1}, phi2: {phi2}")
+                    print(f"mod1: {mod1}, mod2: {mod2}")
                     continue
                 ps1 = ps1[:L1]; gs1 = gs1[:L1]
                 ps2 = ps2[:L2]; gs2 = gs2[:L2]

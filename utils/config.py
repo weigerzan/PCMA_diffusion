@@ -71,16 +71,34 @@ def build_file_list(split_cfg: DataSplitConfig):
         return split_cfg.paths
 
     # Option B — base + shard_list + pattern
-    assert split_cfg.base is not None
-    assert split_cfg.shard_list is not None
-    assert split_cfg.pattern is not None
-
-    base = split_cfg.base
+    if split_cfg.base is None or split_cfg.pattern is None:
+        return []
+    
+    base = Path(split_cfg.base)
     pattern = split_cfg.pattern
-    return [
-        f"{base}/{pattern.format(idx=i)}"
-        for i in split_cfg.shard_list
-    ]
+    
+    # 如果shard_list不为空，直接使用
+    if split_cfg.shard_list is not None and len(split_cfg.shard_list) > 0:
+        return [
+            str(base / pattern.format(idx=i))
+            for i in split_cfg.shard_list
+        ]
+    
+    # 如果shard_list为空，尝试从文件系统中查找匹配的文件
+    if not base.exists():
+        return []
+    
+    # 将pattern转换为glob模式：{idx:02d} -> *, {idx:01d} -> *
+    import re
+    pattern_glob = pattern
+    pattern_glob = re.sub(r'\{idx:\d+d\}', '*', pattern_glob)
+    
+    # 查找匹配的文件
+    matched_files = sorted(base.glob(pattern_glob))
+    if matched_files:
+        return [str(f) for f in matched_files]
+    
+    return []
 
 
 def load_config(path: str) -> Config:
@@ -106,10 +124,29 @@ def load_config(path: str) -> Config:
     cfg.data.train_files = build_file_list(cfg.data.train)
     cfg.data.test_files = build_file_list(cfg.data.test)
 
+    # 设置decoding配置（用于推理后的解调）
     cfg.data.decoding.paths = []
     cfg.data.decoding.base = raw['sampling']['output_dir']
     cfg.data.decoding.pattern = 'shard{idx:01d}.pth'
-    cfg.data.decoding.shard_list = list(range(1, len(raw['data']['test']['paths']) + 1))
+    
+    # 确定decoding的shard_list：基于test数据的文件数量
+    # 支持两种方式：paths 或 base+shard_list+pattern
+    test_config = raw['data']['test']
+    if 'paths' in test_config and test_config['paths'] is not None and len(test_config['paths']) > 0:
+        # 方式1：使用paths列表
+        num_test_files = len(test_config['paths'])
+    elif 'shard_list' in test_config and test_config['shard_list'] is not None and len(test_config['shard_list']) > 0:
+        # 方式2：使用shard_list
+        num_test_files = len(test_config['shard_list'])
+    else:
+        # 如果都没有，尝试从实际文件列表中获取
+        num_test_files = len(cfg.data.test_files)
+    
+    # 如果仍然无法确定，默认使用1
+    if num_test_files == 0:
+        num_test_files = 1
+    
+    cfg.data.decoding.shard_list = list(range(1, num_test_files + 1))
     cfg.data.decoding_files = build_file_list(cfg.data.decoding)
     cfg.training.learning_rate = float(cfg.training.learning_rate)
 

@@ -64,7 +64,7 @@ def load_config_from_yaml(config_path):
         'train_demodulable': generate_mixed_cfg.get('train_demodulable', True),
         'test_demodulable': generate_mixed_cfg.get('test_demodulable', True),
         'undemodulable': generate_mixed_cfg.get('undemodulable', False),
-        'add_noise_to_target_snr': generate_mixed_cfg.get('add_noise_to_target_snr', False),
+        'add_noise_to_target_snr': generate_mixed_cfg.get('add_noise_to_target_snr', True),
         'target_snr_db': generate_mixed_cfg.get('target_snr_db', 15.0),
         'filter_type': generate_mixed_cfg.get('filter_type', 'RRC'),
         'num_workers': generate_mixed_cfg.get('num_workers'),

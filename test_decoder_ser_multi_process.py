@@ -563,9 +563,18 @@ def main():
 
     config = load_config(os.sep.join(['configs', args.config]))
     args.modulation = config.data.modulation 
+    
+    # 确定输出目录：如果使用默认值，则使用模型目录下的demod_results子目录
+    if args.output_dir == "./demod_test_results":
+        # 使用模型输出目录下的demod_results子目录
+        model_output_dir = Path(config.training.output_dir)
+        output_dir = model_output_dir / "demod_results"
+    else:
+        output_dir = Path(args.output_dir)
+    
     # 创建输出目录
-    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"解调结果将保存到: {output_dir}")
     
     print("=" * 70)
     print("解调测试脚本")
@@ -588,7 +597,7 @@ def main():
     snr_signal_1, snr_signal_2, ber_signal_1, ber_signal_2 = run_all(
         dataset,
         args,
-        output_dir="./results",
+        output_dir=str(output_dir),  # 使用确定的输出目录
         num_workers=128
     )
     avg_ber_1 = np.nanmean(ber_signal_1)
