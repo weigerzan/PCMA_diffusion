@@ -139,11 +139,31 @@ class ConfigTab(QWidget):
         # 连接信号，确保最小值不超过最大值
         self.snr_min_spin.valueChanged.connect(lambda v: self.snr_max_spin.setMinimum(v))
         self.snr_max_spin.valueChanged.connect(lambda v: self.snr_min_spin.setMaximum(v))
+        # 创建Es/N0标签（动态更新）
+        self.es_no_label = QLabel("")
+        self.es_no_label.setStyleSheet("color: gray; font-size: 10px;")
+        # 更新Es/N0显示的函数
+        def update_es_no():
+            snr_min = self.snr_min_spin.value()
+            snr_max = self.snr_max_spin.value()
+            if snr_min == snr_max:
+                es_no = snr_min - 9
+                self.es_no_label.setText(f"(Es/N0: {es_no:.1f} dB)")
+            else:
+                es_no_min = snr_min - 9
+                es_no_max = snr_max - 9
+                self.es_no_label.setText(f"(Es/N0: {es_no_min:.1f}-{es_no_max:.1f} dB)")
+        # 连接信号以更新Es/N0显示
+        self.snr_min_spin.valueChanged.connect(lambda v: update_es_no())
+        self.snr_max_spin.valueChanged.connect(lambda v: update_es_no())
+        # 初始更新
+        update_es_no()
         snr_range_layout.addWidget(QLabel("信噪比 (dB):"))
         snr_range_layout.addWidget(QLabel("最小值:"))
         snr_range_layout.addWidget(self.snr_min_spin)
         snr_range_layout.addWidget(QLabel("最大值:"))
         snr_range_layout.addWidget(self.snr_max_spin)
+        snr_range_layout.addWidget(self.es_no_label)
         snr_range_layout.addStretch()
         simple_layout.addRow(snr_range_layout)
         
@@ -282,6 +302,19 @@ class ConfigTab(QWidget):
         self.lr_spin.setValue(2e-4)
         self.lr_spin.setDecimals(6)
         training_layout.addRow("学习率:", self.lr_spin)
+        
+        # 预训练模型路径
+        pretrained_layout = QHBoxLayout()
+        self.pretrained_edit = QLineEdit()
+        self.pretrained_edit.setPlaceholderText("留空表示null，格式: PATH/unet/")
+        self.pretrained_btn = QPushButton("浏览")
+        self.pretrained_btn.clicked.connect(lambda: self.browse_directory(self.pretrained_edit))
+        pretrained_layout.addWidget(self.pretrained_edit)
+        pretrained_layout.addWidget(self.pretrained_btn)
+        training_layout.addRow("预训练模型路径:", pretrained_layout)
+        pretrained_help = QLabel("留空表示null，格式一般为 PATH/unet/")
+        pretrained_help.setStyleSheet("color: gray; font-size: 10px;")
+        training_layout.addRow("", pretrained_help)
         
         training_group.setLayout(training_layout)
         scroll_layout.addWidget(training_group)
@@ -1059,6 +1092,14 @@ class ConfigTab(QWidget):
                 samples_per_file = self.config['data_generation']['generate_mixed'].get('samples_per_file', 30)
                 self.samples_per_file_spin.setValue(int(samples_per_file) if isinstance(samples_per_file, (int, float, str)) else 30)
         
+        # 加载预训练模型路径
+        if 'training' in self.config:
+            pretrained = self.config['training'].get('pretrained', None)
+            if pretrained is None or pretrained == 'null' or pretrained == '':
+                self.pretrained_edit.setText('')
+            else:
+                self.pretrained_edit.setText(str(pretrained))
+        
         # 加载训练高级参数
         if 'training' in self.config:
             test_batch_size = self.config['training'].get('test_batch_size', 64)
@@ -1312,6 +1353,22 @@ class ConfigTab(QWidget):
             self.config['training']['num_epochs'] = self.epochs_spin.value()
             self.config['training']['train_batch_size'] = self.batch_size_spin.value()
             self.config['training']['learning_rate'] = self.lr_spin.value()
+            # 更新预训练模型路径
+            pretrained_path = self.pretrained_edit.text().strip()
+            if pretrained_path:
+                # 如果路径不以/unet/结尾，尝试添加（但保持用户输入的格式）
+                if not pretrained_path.endswith('/unet/') and not pretrained_path.endswith('/unet'):
+                    # 如果路径以/结尾，添加unet/；否则添加/unet/
+                    if pretrained_path.endswith('/'):
+                        pretrained_path = pretrained_path + 'unet/'
+                    else:
+                        pretrained_path = pretrained_path + '/unet/'
+                elif pretrained_path.endswith('/unet'):
+                    # 如果以/unet结尾但没有最后的/，添加/
+                    pretrained_path = pretrained_path + '/'
+                self.config['training']['pretrained'] = pretrained_path
+            else:
+                self.config['training']['pretrained'] = None
             self.config['sampling']['num_inference_steps'] = self.inference_steps_spin.value()
             self.config['sampling']['eta'] = self.eta_spin.value()
             
